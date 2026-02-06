@@ -1,0 +1,1498 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>U.S. Federal Budget FY2025 — Revenue &amp; Spending</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --surface2: #222532;
+      --border: #2a2d3a;
+      --text: #e2e4eb;
+      --text-dim: #8b8fa3;
+      --accent: #6c8cff;
+      --accent2: #50d4a0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    header {
+      text-align: center;
+      padding: 2rem 1rem 1rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    header h1 { font-size: 1.6rem; font-weight: 600; letter-spacing: -0.02em; }
+    header p { color: var(--text-dim); font-size: 0.85rem; margin-top: 0.4rem; }
+
+    .charts-container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2rem;
+      max-width: 1400px;
+      margin: 2rem auto;
+      padding: 0 2rem;
+    }
+
+    @media (max-width: 900px) { .charts-container { grid-template-columns: 1fr; } }
+
+    .chart-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      position: relative;
+    }
+
+    .chart-panel h2 { font-size: 1.1rem; font-weight: 600; margin-bottom: 0.25rem; }
+    .chart-panel .subtitle { font-size: 0.8rem; color: var(--text-dim); margin-bottom: 1rem; }
+
+    .breadcrumb {
+      display: flex; align-items: center; gap: 0.3rem;
+      font-size: 0.75rem; color: var(--text-dim);
+      margin-bottom: 0.75rem; min-height: 1.4em; flex-wrap: wrap;
+    }
+    .breadcrumb span { cursor: pointer; color: var(--accent); text-decoration: underline; }
+    .breadcrumb span:last-child { color: var(--text); cursor: default; text-decoration: none; }
+    .breadcrumb .sep { color: var(--text-dim); cursor: default; text-decoration: none; }
+    .breadcrumb .dim-label { color: var(--accent2); font-style: italic; cursor: default; text-decoration: none; }
+
+    .canvas-wrap { position: relative; width: 100%; max-width: 500px; margin: 0 auto; }
+    canvas { width: 100% !important; }
+
+    .total-label { font-size: 0.85rem; color: var(--text-dim); text-align: center; margin-top: 0.75rem; }
+    .total-label strong { color: var(--text); }
+
+    .hint { font-size: 0.7rem; color: var(--text-dim); text-align: center; margin-top: 0.5rem; font-style: italic; }
+
+    /* Popup menus (context menu + dimension picker) */
+    .popup-menu {
+      display: none; position: fixed; z-index: 1000;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 8px; padding: 0.35rem 0; min-width: 200px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+    }
+    .popup-menu.visible { display: block; }
+
+    .popup-menu .menu-header {
+      padding: 0.4rem 1rem 0.3rem; font-size: 0.7rem;
+      color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.05em;
+    }
+
+    .popup-menu button {
+      display: block; width: 100%; background: none; border: none;
+      color: var(--text); font-size: 0.82rem; padding: 0.5rem 1rem;
+      text-align: left; cursor: pointer; font-family: inherit;
+    }
+    .popup-menu button:hover { background: rgba(108, 140, 255, 0.15); }
+    .popup-menu button:disabled { color: var(--text-dim); cursor: default; }
+    .popup-menu button:disabled:hover { background: none; }
+    .popup-menu button .dim-icon { margin-right: 0.4rem; }
+
+    .popup-menu .divider { height: 1px; background: var(--border); margin: 0.3rem 0; }
+
+    /* Tooltip */
+    .chart-tooltip {
+      display: none; position: fixed; z-index: 900;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 8px; padding: 0.6rem 0.9rem; font-size: 0.8rem;
+      pointer-events: none; box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+      max-width: 280px;
+    }
+    .chart-tooltip .tt-label { font-weight: 600; margin-bottom: 0.2rem; color: var(--text); }
+    .chart-tooltip .tt-value { color: var(--accent); }
+    .chart-tooltip .tt-pct { color: var(--text-dim); margin-left: 0.4rem; }
+    .chart-tooltip .tt-hint { color: var(--accent2); font-size: 0.72rem; margin-top: 0.3rem; }
+
+    /* Overlay for dimension picker */
+    .overlay { display: none; position: fixed; inset: 0; z-index: 999; }
+    .overlay.visible { display: block; }
+
+    footer {
+      text-align: center; padding: 2rem 1rem; font-size: 0.7rem; color: var(--text-dim);
+    }
+    footer a { color: var(--accent); text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>U.S. Federal Budget &mdash; Fiscal Year 2025</h1>
+    <p>Click a slice to drill down &middot; Right-click for navigation &middot; Multiple drill-down views available</p>
+  </header>
+
+  <div class="charts-container">
+    <div class="chart-panel" id="panel-revenue">
+      <h2>Federal Revenue</h2>
+      <div class="subtitle">Total: $5.2 Trillion</div>
+      <div class="breadcrumb" id="bc-revenue"></div>
+      <div class="canvas-wrap"><canvas id="chart-revenue"></canvas></div>
+      <div class="total-label" id="total-revenue"></div>
+      <div class="hint">Click a slice to drill down</div>
+    </div>
+    <div class="chart-panel" id="panel-spending">
+      <h2>Federal Spending</h2>
+      <div class="subtitle">Total: $7.0 Trillion</div>
+      <div class="breadcrumb" id="bc-spending"></div>
+      <div class="canvas-wrap"><canvas id="chart-spending"></canvas></div>
+      <div class="total-label" id="total-spending"></div>
+      <div class="hint">Click a slice to drill down</div>
+    </div>
+  </div>
+
+  <div class="overlay" id="overlay"></div>
+  <div class="popup-menu" id="ctx-menu"></div>
+  <div class="popup-menu" id="dim-menu"></div>
+
+  <div class="chart-tooltip" id="tooltip">
+    <div class="tt-label"></div>
+    <div><span class="tt-value"></span><span class="tt-pct"></span></div>
+    <div class="tt-hint"></div>
+  </div>
+
+  <footer>
+    Data sources:
+    <a href="https://www.cbo.gov/publication/61307" target="_blank">CBO</a>,
+    <a href="https://fiscaldata.treasury.gov/americas-finance-guide/" target="_blank">U.S. Treasury Fiscal Data</a>,
+    <a href="https://www.congress.gov/crs-product/IN12477" target="_blank">CRS</a>,
+    <a href="https://comptroller.war.gov/Budget-Materials/Budget2025/" target="_blank">DoD Comptroller</a>,
+    <a href="https://www.ssa.gov/budget/" target="_blank">SSA</a>,
+    <a href="https://www.cms.gov/files/document/cms-fy-2025-congressional-justification-estimates-appropriations-committees.pdf" target="_blank">CMS</a>,
+    <a href="https://www.va.gov/budget/" target="_blank">VA</a>,
+    <a href="https://www.usaspending.gov/" target="_blank">USAspending.gov</a>
+    &middot; FY2025 (Oct 2024 &ndash; Sep 2025)
+  </footer>
+
+<script>
+// ─── DATA ────────────────────────────────────────────────────────────────────
+// All amounts in billions USD.
+// Nodes can have:
+//   children: [...]          — single drill-down path
+//   dimensions: { "Name": [...], "Name2": [...] } — multiple drill-down views
+// When a node has dimensions with >1 key, clicking shows a picker menu.
+
+const revenueData = {
+  label: "Federal Revenue",
+  total: 5200,
+  children: [
+    {
+      label: "Individual Income Taxes",
+      value: 2530,
+      dimensions: {
+        "By Collection Method": [
+          { label: "Withheld Taxes", value: 1920 },
+          { label: "Estimated Tax Payments", value: 420 },
+          { label: "Other / Refunds Net", value: 190 }
+        ],
+        "By Income Bracket (est.)": [
+          { label: "Top 1% (>$600K)", value: 1010 },
+          { label: "Top 2-10% ($170K-$600K)", value: 730 },
+          { label: "Top 10-25% ($90K-$170K)", value: 380 },
+          { label: "Top 25-50% ($46K-$90K)", value: 250 },
+          { label: "Bottom 50% (<$46K)", value: 160 }
+        ]
+      }
+    },
+    {
+      label: "Payroll Taxes",
+      value: 1770,
+      dimensions: {
+        "By Program": [
+          {
+            label: "Social Security (OASDI)",
+            value: 1190,
+            children: [
+              { label: "Employee Share", value: 595 },
+              { label: "Employer Share", value: 595 }
+            ]
+          },
+          {
+            label: "Medicare (HI)",
+            value: 370,
+            children: [
+              { label: "Base Medicare Tax", value: 340 },
+              { label: "Additional Medicare Tax (>$200K)", value: 30 }
+            ]
+          },
+          { label: "Unemployment Insurance (FUTA)", value: 62 },
+          { label: "Railroad Retirement & Other", value: 148 }
+        ],
+        "By Payer Type": [
+          { label: "Employee Contributions", value: 885 },
+          { label: "Employer Contributions", value: 885 }
+        ]
+      }
+    },
+    {
+      label: "Corporate Income Taxes",
+      value: 450,
+      dimensions: {
+        "By Source": [
+          { label: "Domestic Corporate Tax", value: 340 },
+          {
+            label: "International Provisions",
+            value: 110,
+            children: [
+              { label: "GILTI (Intangible Income)", value: 55 },
+              { label: "Subpart F Income", value: 30 },
+              { label: "BEAT & Other International", value: 25 }
+            ]
+          }
+        ],
+        "By Sector (est.)": [
+          { label: "Finance & Insurance", value: 85 },
+          { label: "Technology", value: 75 },
+          { label: "Manufacturing", value: 65 },
+          { label: "Healthcare & Pharma", value: 55 },
+          { label: "Energy & Utilities", value: 45 },
+          { label: "Retail & Consumer", value: 40 },
+          { label: "Other Sectors", value: 85 }
+        ]
+      }
+    },
+    {
+      label: "Customs Duties & Tariffs",
+      value: 195,
+      dimensions: {
+        "By Authority": [
+          { label: "Section 301 (China)", value: 75 },
+          { label: "Section 232 (Steel/Aluminum)", value: 18 },
+          { label: "General MFN Duties", value: 62 },
+          { label: "Other Country-Specific", value: 40 }
+        ],
+        "By Product Category (est.)": [
+          { label: "Electronics & Machinery", value: 52 },
+          { label: "Metals & Minerals", value: 35 },
+          { label: "Consumer Goods", value: 38 },
+          { label: "Chemicals & Plastics", value: 25 },
+          { label: "Vehicles & Parts", value: 22 },
+          { label: "Agriculture & Food", value: 12 },
+          { label: "Other Products", value: 11 }
+        ]
+      }
+    },
+    {
+      label: "Excise Taxes",
+      value: 100,
+      children: [
+        {
+          label: "Fuel Excise Taxes",
+          value: 36,
+          children: [
+            { label: "Gasoline ($0.184/gal)", value: 24 },
+            { label: "Diesel ($0.244/gal)", value: 8 },
+            { label: "Aviation Fuel", value: 4 }
+          ]
+        },
+        {
+          label: "Tobacco & Alcohol",
+          value: 25,
+          children: [
+            { label: "Tobacco Products", value: 11 },
+            { label: "Distilled Spirits", value: 7 },
+            { label: "Beer", value: 4 },
+            { label: "Wine", value: 3 }
+          ]
+        },
+        {
+          label: "Health-Related Excise",
+          value: 19,
+          children: [
+            { label: "Health Insurance Providers", value: 12 },
+            { label: "Medical Devices", value: 4 },
+            { label: "Indoor Tanning & Other", value: 3 }
+          ]
+        },
+        { label: "Firearms & Ammunition", value: 3 },
+        { label: "Telephone & Communications", value: 5 },
+        { label: "Environmental Taxes", value: 4 },
+        { label: "Other Excise", value: 8 }
+      ]
+    },
+    {
+      label: "Estate & Gift Taxes",
+      value: 30,
+      children: [
+        { label: "Estate Taxes", value: 24 },
+        { label: "Gift Taxes", value: 6 }
+      ]
+    },
+    { label: "Federal Reserve Earnings", value: 55 },
+    {
+      label: "Other Miscellaneous Revenue",
+      value: 70,
+      children: [
+        { label: "Fees & Fines", value: 30 },
+        { label: "Sale of Gov. Assets", value: 15 },
+        { label: "Deposits of Earnings", value: 10 },
+        { label: "Other Receipts", value: 15 }
+      ]
+    }
+  ]
+};
+
+const spendingData = {
+  label: "Federal Spending",
+  total: 7000,
+  children: [
+    {
+      label: "Social Security",
+      value: 1600,
+      dimensions: {
+        "By Program": [
+          { label: "Old-Age & Survivors (OASI)", value: 1310 },
+          { label: "Disability Insurance (DI)", value: 170 },
+          {
+            label: "SSA Administration (LAE)",
+            value: 14.3,
+            children: [
+              { label: "Personnel & Benefits", value: 7.5 },
+              { label: "State Disability (DDS)", value: 2.8 },
+              { label: "IT Systems & Telecom", value: 1.8 },
+              { label: "Rent & Facilities (GSA)", value: 0.9 },
+              { label: "Postage", value: 0.3 },
+              { label: "Other Services & Supplies", value: 1.0 }
+            ]
+          },
+          {
+            label: "Program Integrity",
+            value: 1.9,
+            children: [
+              { label: "Continuing Disability Reviews", value: 1.2 },
+              { label: "SSI Redeterminations", value: 0.4 },
+              { label: "Anti-Fraud (CDI Units)", value: 0.15 },
+              { label: "OIG Transfers", value: 0.15 }
+            ]
+          },
+          { label: "Other SS Programs", value: 103.8 }
+        ],
+        "By Recipient Type": [
+          { label: "Retired Workers", value: 1050 },
+          { label: "Survivors & Dependents", value: 260 },
+          { label: "Disabled Workers", value: 140 },
+          { label: "Disabled Dependents", value: 30 },
+          { label: "Administration & Overhead", value: 16.2 },
+          { label: "Other Programs", value: 103.8 }
+        ]
+      }
+    },
+    {
+      label: "Net Interest on Debt",
+      value: 970,
+      dimensions: {
+        "By Security Type": [
+          { label: "Treasury Notes (2-10 yr)", value: 410 },
+          { label: "Treasury Bonds (>10 yr)", value: 220 },
+          { label: "Treasury Bills (<1 yr)", value: 180 },
+          { label: "TIPS (Inflation-Protected)", value: 55 },
+          { label: "Savings Bonds", value: 5 },
+          { label: "Interest Received (Offset)", value: -40 },
+          { label: "Other Debt Interest", value: 140 }
+        ],
+        "By Holder (est.)": [
+          { label: "Domestic Private Investors", value: 380 },
+          { label: "Federal Reserve", value: 150 },
+          { label: "Foreign Governments", value: 230 },
+          { label: "State & Local Gov.", value: 70 },
+          { label: "Intragovernmental", value: 100 },
+          { label: "Interest Received (Offset)", value: -40 },
+          { label: "Other", value: 80 }
+        ]
+      }
+    },
+    {
+      label: "Medicare",
+      value: 940,
+      dimensions: {
+        "By Part": [
+          {
+            label: "Part B (Physician/Outpatient)",
+            value: 340,
+            children: [
+              { label: "Physician Services", value: 105 },
+              { label: "Outpatient Hospital", value: 100 },
+              { label: "Home Health (Part B)", value: 10 },
+              { label: "Durable Medical Equipment", value: 10 },
+              { label: "Lab & Diagnostics", value: 10 },
+              { label: "Ambulance & Other", value: 105 }
+            ]
+          },
+          {
+            label: "Part A (Hospital Insurance)",
+            value: 310,
+            children: [
+              { label: "Inpatient Hospital", value: 185 },
+              { label: "Skilled Nursing Facility", value: 30 },
+              { label: "Hospice Care", value: 25 },
+              { label: "Home Health (Part A)", value: 10 },
+              { label: "Other Part A", value: 60 }
+            ]
+          },
+          {
+            label: "Part D (Prescription Drugs)",
+            value: 160,
+            children: [
+              { label: "Reinsurance Subsidies", value: 70 },
+              { label: "Direct Subsidies to Plans", value: 45 },
+              { label: "Low-Income Subsidies", value: 30 },
+              { label: "Coverage Gap Discount", value: 15 }
+            ]
+          },
+          { label: "Medicare Advantage (Part C)", value: 110 },
+          {
+            label: "Administration (CMS)",
+            value: 20,
+            children: [
+              { label: "Medicare Admin Contractors", value: 8.5 },
+              { label: "CMS Operations & Personnel", value: 5.5 },
+              { label: "IT Systems & Data", value: 3.0 },
+              { label: "Quality & Program Integrity", value: 3.0 }
+            ]
+          }
+        ],
+        "By Service Type": [
+          { label: "Inpatient Hospital", value: 285 },
+          { label: "Physician & Clinical", value: 155 },
+          { label: "Outpatient Hospital", value: 100 },
+          { label: "Prescription Drugs", value: 160 },
+          { label: "Managed Care (MA) Payments", value: 110 },
+          { label: "Post-Acute Care (SNF/HH/Hospice)", value: 75 },
+          { label: "Durable Equipment & Lab", value: 25 },
+          { label: "Administration", value: 20 },
+          { label: "Other Services", value: 10 }
+        ]
+      }
+    },
+    {
+      label: "National Defense",
+      value: 895,
+      dimensions: {
+        "By Appropriation Type": [
+          {
+            label: "Operations & Maintenance",
+            value: 340,
+            children: [
+              { label: "Army O&M", value: 65 },
+              { label: "Navy / Marine Corps O&M", value: 70 },
+              { label: "Air Force O&M", value: 65 },
+              { label: "Defense-Wide O&M", value: 115 },
+              { label: "Space Force O&M", value: 25 }
+            ]
+          },
+          {
+            label: "Military Personnel",
+            value: 181,
+            children: [
+              { label: "Army Personnel", value: 70.7 },
+              { label: "Navy Personnel", value: 61.9 },
+              { label: "Air Force Personnel", value: 40 },
+              { label: "Marine Corps Personnel", value: 5 },
+              { label: "Space Force Personnel", value: 3.4 }
+            ]
+          },
+          {
+            label: "Procurement",
+            value: 168,
+            children: [
+              { label: "Aircraft", value: 58 },
+              { label: "Shipbuilding & Conversion", value: 32 },
+              { label: "Missiles & Munitions", value: 27 },
+              { label: "Electronics & Comms", value: 20 },
+              { label: "Ground Vehicles", value: 8 },
+              { label: "Ammunition", value: 6 },
+              { label: "Other Procurement", value: 17 }
+            ]
+          },
+          {
+            label: "Research & Development",
+            value: 143,
+            children: [
+              { label: "Major System Development", value: 55 },
+              { label: "Science & Technology (6.1-6.3)", value: 18.9 },
+              { label: "Advanced Technology Dev.", value: 15 },
+              { label: "RDT&E Management & Support", value: 10 },
+              { label: "Operational Test & Eval.", value: 5 },
+              { label: "Other R&D", value: 39.1 }
+            ]
+          },
+          { label: "Military Construction", value: 18 },
+          { label: "Family Housing & Other", value: 45 }
+        ],
+        "By Service Branch": [
+          {
+            label: "Army",
+            value: 185.9,
+            children: [
+              { label: "Army Personnel", value: 70.7 },
+              { label: "Army O&M", value: 65 },
+              { label: "Army Procurement", value: 24.4 },
+              { label: "Army RDT&E", value: 15 },
+              { label: "Army MilCon & Other", value: 10.8 }
+            ]
+          },
+          {
+            label: "Navy / Marine Corps",
+            value: 255,
+            children: [
+              { label: "Navy Personnel", value: 61.9 },
+              { label: "Navy O&M", value: 70 },
+              { label: "Shipbuilding", value: 32 },
+              { label: "Aircraft Procurement", value: 28 },
+              { label: "Navy RDT&E", value: 25 },
+              { label: "Marines & Other", value: 38.1 }
+            ]
+          },
+          {
+            label: "Air Force",
+            value: 217,
+            children: [
+              { label: "AF Personnel", value: 40 },
+              { label: "AF O&M", value: 65 },
+              { label: "AF Procurement", value: 60 },
+              { label: "AF RDT&E", value: 42 },
+              { label: "AF MilCon & Other", value: 10 }
+            ]
+          },
+          {
+            label: "Defense-Wide & Agencies",
+            value: 207.1,
+            children: [
+              { label: "Defense Health Program", value: 36 },
+              { label: "DISA (IT & Comms)", value: 12 },
+              { label: "Missile Defense Agency", value: 12.4 },
+              { label: "SOCOM (Special Ops)", value: 14 },
+              { label: "DARPA (Advanced Research)", value: 4.2 },
+              { label: "Defense Logistics Agency", value: 42 },
+              { label: "Other Defense Agencies", value: 86.5 }
+            ]
+          },
+          {
+            label: "Space Force",
+            value: 30,
+            children: [
+              { label: "SF Personnel", value: 3.4 },
+              { label: "SF O&M", value: 12 },
+              { label: "SF Procurement", value: 8 },
+              { label: "SF RDT&E", value: 6.6 }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      label: "Income Security Programs",
+      value: 735,
+      dimensions: {
+        "By Program": [
+          {
+            label: "Federal Employee Retirement",
+            value: 175,
+            children: [
+              { label: "FERS (Federal Employees)", value: 85 },
+              { label: "Military Retirement", value: 60 },
+              { label: "CSRS (Legacy Civil Service)", value: 30 }
+            ]
+          },
+          {
+            label: "SNAP (Food Stamps)",
+            value: 125,
+            children: [
+              { label: "Benefits to Recipients", value: 115 },
+              { label: "State Admin Costs", value: 7 },
+              { label: "SNAP Employment & Training", value: 3 }
+            ]
+          },
+          { label: "Child Tax Credit (Refundable)", value: 120 },
+          {
+            label: "Housing Assistance",
+            value: 72,
+            children: [
+              { label: "Section 8 Vouchers (HCV)", value: 32 },
+              { label: "Project-Based Rental Assist.", value: 14 },
+              { label: "Public Housing", value: 8 },
+              { label: "HOME & LIHTEC", value: 10 },
+              { label: "Homeless Assistance", value: 4 },
+              { label: "Other Housing", value: 4 }
+            ]
+          },
+          {
+            label: "Earned Income Tax Credit",
+            value: 70,
+            children: [
+              { label: "Families w/ Children", value: 58 },
+              { label: "Workers w/o Children", value: 12 }
+            ]
+          },
+          {
+            label: "Supplemental Security Income",
+            value: 65,
+            children: [
+              { label: "Aged Recipients", value: 10 },
+              { label: "Blind & Disabled Adults", value: 45 },
+              { label: "Disabled Children", value: 10 }
+            ]
+          },
+          {
+            label: "Unemployment Compensation",
+            value: 45,
+            children: [
+              { label: "State UC Benefits", value: 38 },
+              { label: "Federal Admin & Extended", value: 7 }
+            ]
+          },
+          {
+            label: "Other Income Security",
+            value: 63,
+            children: [
+              { label: "WIC (Women/Infants/Children)", value: 6 },
+              { label: "School Lunch / Nutrition", value: 18 },
+              { label: "TANF Block Grants", value: 16 },
+              { label: "Foster Care & Adoption", value: 10 },
+              { label: "Other Programs", value: 13 }
+            ]
+          }
+        ],
+        "By Type": [
+          { label: "Cash Transfers", value: 345 },
+          { label: "Tax Credits (Refundable)", value: 190 },
+          { label: "In-Kind Benefits (Food, Housing)", value: 197 },
+          { label: "Administration", value: 3 }
+        ]
+      }
+    },
+    {
+      label: "Medicaid & CHIP",
+      value: 650,
+      dimensions: {
+        "By Program": [
+          { label: "Traditional Medicaid", value: 540 },
+          { label: "Medicaid Expansion (ACA)", value: 80 },
+          { label: "CHIP", value: 20 },
+          { label: "Administration", value: 10 }
+        ],
+        "By Service Type": [
+          { label: "Managed Care", value: 240 },
+          { label: "Hospital (Inpatient + ER)", value: 105 },
+          { label: "Long-Term Care & Nursing", value: 100 },
+          { label: "Home & Community Based", value: 65 },
+          { label: "Prescription Drugs", value: 45 },
+          { label: "Physician & Clinic", value: 40 },
+          { label: "Mental Health & Substance", value: 25 },
+          { label: "Dental / Vision / Other", value: 20 },
+          { label: "Administration", value: 10 }
+        ],
+        "By Enrollment Group": [
+          { label: "Aged & Disabled", value: 350 },
+          { label: "Children", value: 130 },
+          { label: "Adults (Expansion + Trad.)", value: 140 },
+          { label: "Pregnant Women", value: 20 },
+          { label: "Administration", value: 10 }
+        ]
+      }
+    },
+    {
+      label: "Veterans Benefits & Services",
+      value: 350,
+      dimensions: {
+        "By Program Area": [
+          {
+            label: "Disability Compensation",
+            value: 145,
+            children: [
+              { label: "Service-Connected Disability", value: 125 },
+              { label: "PACT Act (Toxic Exposure)", value: 20 }
+            ]
+          },
+          {
+            label: "Veterans Health Care (VHA)",
+            value: 120,
+            children: [
+              { label: "Outpatient Care", value: 40 },
+              { label: "Community Care (Non-VA)", value: 28 },
+              { label: "Inpatient Care", value: 22 },
+              { label: "Mental Health Services", value: 15 },
+              { label: "Pharmacy", value: 12 },
+              { label: "Other VHA", value: 3 }
+            ]
+          },
+          {
+            label: "Pensions & Survivors",
+            value: 55,
+            children: [
+              { label: "Survivors Benefits (DIC)", value: 30 },
+              { label: "Veterans Pensions", value: 15 },
+              { label: "Burial & Other", value: 10 }
+            ]
+          },
+          {
+            label: "Education (GI Bill)",
+            value: 30,
+            children: [
+              { label: "Post-9/11 GI Bill", value: 20 },
+              { label: "Voc Rehab & Other Ed.", value: 10 }
+            ]
+          }
+        ],
+        "By Spending Type": [
+          { label: "Direct Benefits to Veterans", value: 280 },
+          { label: "Medical Facilities & Staff", value: 42 },
+          { label: "IT Systems", value: 7 },
+          { label: "Construction & Maintenance", value: 8 },
+          { label: "Administration & Other", value: 13 }
+        ]
+      }
+    },
+    {
+      label: "Education",
+      value: 207,
+      dimensions: {
+        "By Program": [
+          {
+            label: "K-12 Education",
+            value: 80,
+            children: [
+              { label: "Title I (Disadvantaged)", value: 18 },
+              { label: "IDEA (Special Education)", value: 15 },
+              { label: "Impact Aid", value: 2 },
+              { label: "Teacher Quality", value: 3 },
+              { label: "21st Century Learning", value: 1.3 },
+              { label: "School Safety / Other K-12", value: 40.7 }
+            ]
+          },
+          {
+            label: "Higher Education Aid",
+            value: 70,
+            children: [
+              { label: "Pell Grants", value: 33 },
+              { label: "Federal Work-Study", value: 1.2 },
+              { label: "SEOG Grants", value: 0.9 },
+              { label: "TRIO & Other Student Aid", value: 34.9 }
+            ]
+          },
+          { label: "Student Loan Programs (net)", value: 32 },
+          { label: "Head Start", value: 12 },
+          { label: "Career & Technical Education", value: 2.5 },
+          { label: "Research (IES, etc.)", value: 2 },
+          { label: "Other Education Programs", value: 8.5 }
+        ],
+        "By Level": [
+          { label: "K-12 Programs", value: 102 },
+          { label: "Post-Secondary", value: 102 },
+          { label: "Research & Administration", value: 3 }
+        ]
+      }
+    },
+    {
+      label: "ACA Marketplace Subsidies",
+      value: 125,
+      children: [
+        { label: "Premium Tax Credits", value: 105 },
+        { label: "Cost-Sharing Reductions", value: 15 },
+        { label: "Navigator & Admin", value: 5 }
+      ]
+    },
+    {
+      label: "Transportation",
+      value: 140,
+      dimensions: {
+        "By Mode": [
+          {
+            label: "Highways (FHWA)",
+            value: 65,
+            children: [
+              { label: "Federal-Aid Highway Program", value: 52 },
+              { label: "Bridge Replacement", value: 6 },
+              { label: "Highway Safety", value: 4 },
+              { label: "Research & Admin", value: 3 }
+            ]
+          },
+          {
+            label: "Aviation (FAA)",
+            value: 25,
+            children: [
+              { label: "Air Traffic Control (Ops)", value: 13 },
+              { label: "Airport Improvement (AIP)", value: 4 },
+              { label: "Facilities & Equipment", value: 3.5 },
+              { label: "NextGen & Research", value: 2 },
+              { label: "Safety & Oversight", value: 2.5 }
+            ]
+          },
+          {
+            label: "Transit (FTA)",
+            value: 18,
+            children: [
+              { label: "Capital Investment Grants", value: 5 },
+              { label: "Formula Grants (Urbanized)", value: 8 },
+              { label: "Rural & Other Transit", value: 5 }
+            ]
+          },
+          { label: "Rail (FRA / Amtrak)", value: 5 },
+          { label: "Maritime (MARAD)", value: 3 },
+          { label: "Pipeline Safety (PHMSA)", value: 1 },
+          { label: "Other DOT", value: 23 }
+        ],
+        "By Spending Type": [
+          { label: "Capital / Infrastructure", value: 75 },
+          { label: "Operations & Maintenance", value: 40 },
+          { label: "Safety & Regulation", value: 12 },
+          { label: "Research & Admin", value: 13 }
+        ]
+      }
+    },
+    {
+      label: "Other Federal Spending",
+      value: 388,
+      children: [
+        {
+          label: "International Affairs",
+          value: 65,
+          children: [
+            { label: "USAID / Development", value: 22 },
+            { label: "State Dept. Operations", value: 15 },
+            { label: "Security Assistance", value: 13 },
+            { label: "International Organizations", value: 5 },
+            { label: "Economic Aid by Region", value: 10 }
+          ]
+        },
+        {
+          label: "Justice & Law Enforcement",
+          value: 55,
+          children: [
+            { label: "FBI", value: 11 },
+            { label: "Federal Courts", value: 10 },
+            { label: "Bureau of Prisons (BOP)", value: 9 },
+            { label: "U.S. Marshals Service", value: 4 },
+            { label: "DEA", value: 3.5 },
+            { label: "ATF", value: 2 },
+            { label: "Other Justice", value: 15.5 }
+          ]
+        },
+        {
+          label: "Energy & Environment",
+          value: 52,
+          dimensions: {
+            "By Agency": [
+              {
+                label: "NNSA (Nuclear Security)",
+                value: 25,
+                children: [
+                  { label: "Weapons Activities", value: 17 },
+                  { label: "Naval Reactors", value: 2.2 },
+                  { label: "Defense Nuclear Nonprolif.", value: 3 },
+                  { label: "NNSA Other", value: 2.8 }
+                ]
+              },
+              {
+                label: "DOE Energy Programs",
+                value: 18,
+                children: [
+                  { label: "Renewable Energy & Efficiency", value: 4 },
+                  { label: "Nuclear Energy", value: 2 },
+                  { label: "Fossil Energy & Carbon Mgmt", value: 1.5 },
+                  { label: "Electricity & Grid", value: 2 },
+                  { label: "DOE Science", value: 8 },
+                  { label: "Other DOE", value: 0.5 }
+                ]
+              },
+              {
+                label: "EPA",
+                value: 9,
+                children: [
+                  { label: "Clean Water / Drinking Water", value: 3.2 },
+                  { label: "Superfund Cleanup", value: 2 },
+                  { label: "Air Quality & Climate", value: 1.2 },
+                  { label: "EPA Operations & Other", value: 2.6 }
+                ]
+              }
+            ],
+            "By Function": [
+              { label: "Nuclear Security & Weapons", value: 25 },
+              { label: "Energy Research & Dev.", value: 10 },
+              { label: "Environmental Protection", value: 9 },
+              { label: "Clean Energy Programs", value: 8 }
+            ]
+          }
+        },
+        {
+          label: "Science & Space",
+          value: 42,
+          children: [
+            {
+              label: "NASA",
+              value: 25,
+              children: [
+                { label: "Human Spaceflight (Artemis)", value: 8 },
+                { label: "Science Missions", value: 7.5 },
+                { label: "Space Technology", value: 3.5 },
+                { label: "Space Operations (ISS)", value: 3 },
+                { label: "Aeronautics", value: 1 },
+                { label: "Other NASA", value: 2 }
+              ]
+            },
+            {
+              label: "NSF",
+              value: 9,
+              children: [
+                { label: "Research & Related", value: 7 },
+                { label: "Education & Human Resources", value: 1.1 },
+                { label: "Major Facilities & Other", value: 0.9 }
+              ]
+            },
+            {
+              label: "DOE Office of Science",
+              value: 8,
+              children: [
+                { label: "Basic Energy Sciences", value: 2.4 },
+                { label: "High Energy Physics", value: 1.2 },
+                { label: "Biological & Environmental", value: 0.9 },
+                { label: "Nuclear Physics", value: 0.8 },
+                { label: "Advanced Computing", value: 1 },
+                { label: "Fusion & Other", value: 1.7 }
+              ]
+            }
+          ]
+        },
+        {
+          label: "Agriculture",
+          value: 38,
+          children: [
+            {
+              label: "Farm Subsidies & Crop Ins.",
+              value: 15,
+              children: [
+                { label: "Crop Insurance Subsidies", value: 10 },
+                { label: "Commodity Programs (ARC/PLC)", value: 3 },
+                { label: "Dairy & Livestock", value: 2 }
+              ]
+            },
+            { label: "Forest Service", value: 7 },
+            {
+              label: "Conservation Programs",
+              value: 7,
+              children: [
+                { label: "CRP (Conservation Reserve)", value: 2.5 },
+                { label: "EQIP", value: 2 },
+                { label: "CSP & Other Conservation", value: 2.5 }
+              ]
+            },
+            { label: "Rural Development", value: 5 },
+            { label: "Agricultural Research (ARS)", value: 2.5 },
+            { label: "Food Safety (FSIS)", value: 1.5 }
+          ]
+        },
+        {
+          label: "Community & Regional Dev.",
+          value: 35,
+          children: [
+            { label: "FEMA (Disaster Relief)", value: 18 },
+            { label: "Community Dev. Block Grants", value: 4 },
+            { label: "Corps of Engineers (Civil)", value: 8 },
+            { label: "Other Community Dev.", value: 5 }
+          ]
+        },
+        { label: "General Government", value: 30 },
+        { label: "All Other", value: 71 }
+      ]
+    }
+  ]
+};
+
+// ─── PALETTE ─────────────────────────────────────────────────────────────────
+const PALETTE = [
+  '#6c8cff','#ff6b8a','#50d4a0','#ffb84d','#a78bfa',
+  '#f472b6','#34d399','#fbbf24','#60a5fa','#fb923c',
+  '#c084fc','#4ade80','#f87171','#38bdf8','#e879f9',
+  '#facc15','#2dd4bf','#fb7185','#818cf8','#a3e635'
+];
+
+function getColors(n) {
+  const c = [];
+  for (let i = 0; i < n; i++) c.push(PALETTE[i % PALETTE.length]);
+  return c;
+}
+
+// ─── FORMAT ──────────────────────────────────────────────────────────────────
+function fmtB(b) {
+  if (b < 0) return '-' + fmtB(-b);
+  if (b >= 1000) return '$' + (b / 1000).toFixed(2) + 'T';
+  if (b >= 1) return '$' + b.toFixed(b % 1 === 0 ? 0 : 1) + 'B';
+  return '$' + (b * 1000).toFixed(0) + 'M';
+}
+
+// ─── HELPERS: get drillable info for a node ──────────────────────────────────
+function getDimensions(node) {
+  if (!node) return null;
+  if (node.dimensions) {
+    const keys = Object.keys(node.dimensions);
+    if (keys.length > 0) return node.dimensions;
+  }
+  if (node.children && node.children.length > 0) {
+    return { "Items": node.children };
+  }
+  return null;
+}
+
+function getDimensionCount(node) {
+  const dims = getDimensions(node);
+  return dims ? Object.keys(dims).length : 0;
+}
+
+function getDimensionNames(node) {
+  const dims = getDimensions(node);
+  return dims ? Object.keys(dims) : [];
+}
+
+// ─── CHART MANAGER ───────────────────────────────────────────────────────────
+class PieManager {
+  constructor(canvasId, data, bcId, totalId) {
+    this.canvas = document.getElementById(canvasId);
+    this.bcEl = document.getElementById(bcId);
+    this.totalEl = document.getElementById(totalId);
+    this.rootData = data;
+    // stack entries: { node, dimName }  — dimName is which dimension was chosen
+    this.stack = [];
+    this.currentNode = data;
+    this.currentDimName = null; // which dimension we're viewing at root
+    this.chart = null;
+    this.hoveredIndex = -1;
+    this.render();
+  }
+
+  get canGoBack() { return this.stack.length > 0; }
+
+  getCurrentItems() {
+    const node = this.currentNode;
+    if (this.currentDimName && node.dimensions && node.dimensions[this.currentDimName]) {
+      return node.dimensions[this.currentDimName];
+    }
+    if (node.children) return node.children;
+    if (node.dimensions) {
+      const keys = Object.keys(node.dimensions);
+      if (keys.length > 0) return node.dimensions[keys[0]];
+    }
+    return [];
+  }
+
+  render() {
+    const items = this.getCurrentItems();
+    // Filter out negative values for the pie chart but keep them in display
+    const displayItems = items;
+    const pieItems = items.filter(c => c.value > 0);
+    const labels = pieItems.map(c => c.label);
+    const values = pieItems.map(c => c.value);
+    const total = displayItems.reduce((a, c) => a + Math.abs(c.value), 0);
+    const colors = getColors(pieItems.length);
+
+    if (this.chart) this.chart.destroy();
+
+    const self = this;
+    this.chart = new Chart(this.canvas.getContext('2d'), {
+      type: 'pie',
+      data: {
+        labels,
+        datasets: [{
+          data: values,
+          backgroundColor: colors,
+          borderColor: '#1a1d27',
+          borderWidth: 2,
+          hoverBorderColor: '#fff',
+          hoverBorderWidth: 2,
+          hoverOffset: 12
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        animation: { duration: 400, easing: 'easeOutQuart' },
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: {
+              color: '#e2e4eb',
+              font: { size: 11 },
+              padding: 12,
+              usePointStyle: true,
+              pointStyleWidth: 10,
+              generateLabels: (chart) => {
+                const ds = chart.data.datasets[0];
+                return chart.data.labels.map((label, i) => ({
+                  text: `${label}  ${fmtB(ds.data[i])}`,
+                  fillStyle: ds.backgroundColor[i],
+                  strokeStyle: ds.backgroundColor[i],
+                  fontColor: '#e2e4eb',
+                  hidden: false,
+                  index: i,
+                  pointStyle: 'circle'
+                }));
+              }
+            }
+          },
+          tooltip: { enabled: false }
+        },
+        onClick: (evt, elems) => {
+          if (elems.length > 0) {
+            const chartIdx = elems[0].index;
+            // Map back to the pieItems index then find in displayItems
+            const clickedLabel = pieItems[chartIdx].label;
+            const realIdx = displayItems.findIndex(c => c.label === clickedLabel);
+            if (realIdx >= 0) self.handleClick(realIdx, evt);
+          }
+        },
+        onHover: (evt, elems) => {
+          self.canvas.style.cursor = elems.length > 0 ? 'pointer' : 'default';
+          const idx = elems.length > 0 ? elems[0].index : -1;
+          if (idx !== self.hoveredIndex) {
+            self.hoveredIndex = idx;
+            if (idx >= 0) {
+              const item = pieItems[idx];
+              const dimCount = getDimensionCount(item);
+              let hint = '';
+              if (dimCount > 1) {
+                hint = `${dimCount} drill-down views available`;
+              } else if (dimCount === 1) {
+                hint = 'Click to drill down';
+              }
+              showTooltip(self.canvas, evt, item.label, item.value, total, hint);
+            } else {
+              hideTooltip();
+            }
+          } else if (idx >= 0) {
+            moveTooltip(evt);
+          }
+        }
+      }
+    });
+
+    // Negative items shown at bottom
+    const negItems = displayItems.filter(c => c.value < 0);
+    let negHtml = '';
+    if (negItems.length > 0) {
+      negHtml = '<br>' + negItems.map(c =>
+        `<span style="color:var(--text-dim);font-size:0.75rem">${c.label}: ${fmtB(c.value)}</span>`
+      ).join(', ');
+    }
+
+    const posTotal = displayItems.reduce((a, c) => a + c.value, 0);
+    this.totalEl.innerHTML = `Showing: <strong>${fmtB(posTotal)}</strong>${negHtml}`;
+    this.updateBreadcrumb();
+  }
+
+  handleClick(index, evt) {
+    const items = this.getCurrentItems();
+    const target = items[index];
+    if (!target) return;
+
+    const dimNames = getDimensionNames(target);
+    if (dimNames.length === 0) return; // leaf node
+
+    if (dimNames.length === 1) {
+      // Single dimension — drill directly
+      this.drillInto(target, dimNames[0]);
+    } else {
+      // Multiple dimensions — show picker
+      const nativeEvt = evt.native || evt;
+      showDimPicker(nativeEvt.clientX, nativeEvt.clientY, this, target, dimNames);
+    }
+  }
+
+  drillInto(targetNode, dimName) {
+    this.stack.push({ node: this.currentNode, dimName: this.currentDimName });
+    this.currentNode = targetNode;
+    this.currentDimName = dimName === "Items" ? null : dimName;
+    hideTooltip();
+    this.hoveredIndex = -1;
+    this.render();
+  }
+
+  goBack() {
+    if (!this.canGoBack) return;
+    const prev = this.stack.pop();
+    this.currentNode = prev.node;
+    this.currentDimName = prev.dimName;
+    hideTooltip();
+    this.hoveredIndex = -1;
+    this.render();
+  }
+
+  goTop() {
+    if (!this.canGoBack) return;
+    this.stack = [];
+    this.currentNode = this.rootData;
+    this.currentDimName = null;
+    hideTooltip();
+    this.hoveredIndex = -1;
+    this.render();
+  }
+
+  navigateToLevel(level) {
+    const fullPath = this.getFullPath();
+    this.currentNode = this.rootData;
+    this.currentDimName = null;
+    this.stack = [];
+    for (let j = 1; j <= level; j++) {
+      this.stack.push({ node: this.currentNode, dimName: this.currentDimName });
+      this.currentNode = fullPath[j].node;
+      this.currentDimName = fullPath[j].dimName;
+    }
+    hideTooltip();
+    this.hoveredIndex = -1;
+    this.render();
+  }
+
+  getFullPath() {
+    const path = [];
+    for (const entry of this.stack) {
+      path.push({ node: entry.node, dimName: entry.dimName });
+    }
+    path.push({ node: this.currentNode, dimName: this.currentDimName });
+    return path;
+  }
+
+  updateBreadcrumb() {
+    const path = this.getFullPath();
+    let html = '';
+    path.forEach((entry, i) => {
+      if (i > 0) html += '<span class="sep"> &rsaquo; </span>';
+      if (entry.dimName && i > 0) {
+        html += `<span class="dim-label">[${entry.dimName}]</span>`;
+        html += '<span class="sep"> &rsaquo; </span>';
+      }
+      if (i < path.length - 1) {
+        html += `<span data-level="${i}">${entry.node.label}</span>`;
+      } else {
+        if (entry.dimName) {
+          html += `<span class="dim-label">[${entry.dimName}]</span>`;
+          html += '<span class="sep"> &rsaquo; </span>';
+        }
+        html += `<span>${entry.node.label}</span>`;
+      }
+    });
+    this.bcEl.innerHTML = html;
+
+    this.bcEl.querySelectorAll('span[data-level]').forEach(el => {
+      el.addEventListener('click', () => {
+        this.navigateToLevel(parseInt(el.dataset.level));
+      });
+    });
+  }
+}
+
+// ─── TOOLTIP ─────────────────────────────────────────────────────────────────
+const tooltipEl = document.getElementById('tooltip');
+
+function showTooltip(canvas, evt, label, value, total, hint) {
+  const pct = ((Math.abs(value) / total) * 100).toFixed(1);
+  tooltipEl.querySelector('.tt-label').textContent = label;
+  tooltipEl.querySelector('.tt-value').textContent = fmtB(value);
+  tooltipEl.querySelector('.tt-pct').textContent = ` (${pct}%)`;
+  tooltipEl.querySelector('.tt-hint').textContent = hint || '';
+  tooltipEl.style.display = 'block';
+  moveTooltip(evt);
+}
+
+function moveTooltip(evt) {
+  const x = (evt.native || evt).clientX || 0;
+  const y = (evt.native || evt).clientY || 0;
+  const pad = 14;
+  let left = x + pad, top = y + pad;
+  const rect = tooltipEl.getBoundingClientRect();
+  if (left + rect.width > window.innerWidth - 10) left = x - rect.width - pad;
+  if (top + rect.height > window.innerHeight - 10) top = y - rect.height - pad;
+  tooltipEl.style.left = left + 'px';
+  tooltipEl.style.top = top + 'px';
+}
+
+function hideTooltip() { tooltipEl.style.display = 'none'; }
+
+// ─── POPUP POSITIONING ───────────────────────────────────────────────────────
+function positionPopup(el, x, y) {
+  el.style.left = x + 'px';
+  el.style.top = y + 'px';
+  el.classList.add('visible');
+  requestAnimationFrame(() => {
+    const rect = el.getBoundingClientRect();
+    if (rect.right > window.innerWidth) el.style.left = (x - rect.width) + 'px';
+    if (rect.bottom > window.innerHeight) el.style.top = (y - rect.height) + 'px';
+  });
+}
+
+// ─── DIMENSION PICKER ────────────────────────────────────────────────────────
+const dimMenu = document.getElementById('dim-menu');
+const overlay = document.getElementById('overlay');
+let dimPickerCallback = null;
+
+function showDimPicker(x, y, manager, targetNode, dimNames) {
+  dimMenu.innerHTML = '';
+
+  const header = document.createElement('div');
+  header.className = 'menu-header';
+  header.textContent = `Drill into "${targetNode.label}"`;
+  dimMenu.appendChild(header);
+
+  const divider = document.createElement('div');
+  divider.className = 'divider';
+  dimMenu.appendChild(divider);
+
+  dimNames.forEach(name => {
+    const items = targetNode.dimensions[name];
+    const btn = document.createElement('button');
+    btn.innerHTML = `<span class="dim-icon">&#9656;</span> ${name} <span style="color:var(--text-dim);font-size:0.72rem;margin-left:0.3rem">(${items.length} items)</span>`;
+    btn.addEventListener('click', () => {
+      hideDimPicker();
+      manager.drillInto(targetNode, name);
+    });
+    dimMenu.appendChild(btn);
+  });
+
+  positionPopup(dimMenu, x, y);
+  overlay.classList.add('visible');
+  dimPickerCallback = () => hideDimPicker();
+}
+
+function hideDimPicker() {
+  dimMenu.classList.remove('visible');
+  overlay.classList.remove('visible');
+  dimPickerCallback = null;
+}
+
+overlay.addEventListener('click', () => { if (dimPickerCallback) dimPickerCallback(); });
+
+// ─── CONTEXT MENU ────────────────────────────────────────────────────────────
+const ctxMenu = document.getElementById('ctx-menu');
+let activeManager = null;
+let ctxSliceIndex = -1;
+
+function showCtxMenu(x, y, manager, sliceIdx) {
+  activeManager = manager;
+  ctxSliceIndex = sliceIdx;
+
+  ctxMenu.innerHTML = '';
+
+  // Back button
+  const backBtn = document.createElement('button');
+  backBtn.innerHTML = '&#8592; Back';
+  backBtn.disabled = !manager.canGoBack;
+  backBtn.addEventListener('click', () => { manager.goBack(); hideCtxMenu(); });
+  ctxMenu.appendChild(backBtn);
+
+  // Top button
+  const topBtn = document.createElement('button');
+  topBtn.innerHTML = '&#8962; Back to Top';
+  topBtn.disabled = !manager.canGoBack;
+  topBtn.addEventListener('click', () => { manager.goTop(); hideCtxMenu(); });
+  ctxMenu.appendChild(topBtn);
+
+  // Divider
+  const div1 = document.createElement('div');
+  div1.className = 'divider';
+  ctxMenu.appendChild(div1);
+
+  // Drill options
+  const items = manager.getCurrentItems();
+  const pieItems = items.filter(c => c.value > 0);
+  if (sliceIdx >= 0 && pieItems[sliceIdx]) {
+    const target = pieItems[sliceIdx];
+    const realItem = items.find(c => c.label === target.label) || target;
+    const dimNames = getDimensionNames(realItem);
+
+    if (dimNames.length === 0) {
+      const btn = document.createElement('button');
+      btn.textContent = `"${realItem.label}" — no sub-items`;
+      btn.disabled = true;
+      ctxMenu.appendChild(btn);
+    } else if (dimNames.length === 1) {
+      const btn = document.createElement('button');
+      btn.innerHTML = `<span class="dim-icon">&#9656;</span> Drill into "${realItem.label}"`;
+      btn.addEventListener('click', () => {
+        manager.drillInto(realItem, dimNames[0]);
+        hideCtxMenu();
+      });
+      ctxMenu.appendChild(btn);
+    } else {
+      const header = document.createElement('div');
+      header.className = 'menu-header';
+      header.textContent = `Drill into "${realItem.label}"`;
+      ctxMenu.appendChild(header);
+
+      dimNames.forEach(name => {
+        const dimItems = realItem.dimensions[name];
+        const btn = document.createElement('button');
+        btn.innerHTML = `<span class="dim-icon">&#9656;</span> ${name} <span style="color:var(--text-dim);font-size:0.72rem">(${dimItems.length})</span>`;
+        btn.addEventListener('click', () => {
+          manager.drillInto(realItem, name);
+          hideCtxMenu();
+        });
+        ctxMenu.appendChild(btn);
+      });
+    }
+  } else {
+    const btn = document.createElement('button');
+    btn.textContent = 'No slice selected';
+    btn.disabled = true;
+    ctxMenu.appendChild(btn);
+  }
+
+  positionPopup(ctxMenu, x, y);
+}
+
+function hideCtxMenu() {
+  ctxMenu.classList.remove('visible');
+  activeManager = null;
+  ctxSliceIndex = -1;
+}
+
+document.addEventListener('click', (e) => {
+  if (!ctxMenu.contains(e.target)) hideCtxMenu();
+});
+document.addEventListener('scroll', hideCtxMenu);
+
+// ─── INIT ────────────────────────────────────────────────────────────────────
+const revMgr = new PieManager('chart-revenue', revenueData, 'bc-revenue', 'total-revenue');
+const spnMgr = new PieManager('chart-spending', spendingData, 'bc-spending', 'total-spending');
+
+function getSliceAtEvent(chart, nativeEvt) {
+  const elems = chart.getElementsAtEventForMode(nativeEvt, 'nearest', { intersect: true }, false);
+  return elems.length > 0 ? elems[0].index : -1;
+}
+
+document.getElementById('chart-revenue').addEventListener('contextmenu', (e) => {
+  e.preventDefault();
+  showCtxMenu(e.clientX, e.clientY, revMgr, getSliceAtEvent(revMgr.chart, e));
+});
+
+document.getElementById('chart-spending').addEventListener('contextmenu', (e) => {
+  e.preventDefault();
+  showCtxMenu(e.clientX, e.clientY, spnMgr, getSliceAtEvent(spnMgr.chart, e));
+});
+
+document.getElementById('panel-revenue').addEventListener('contextmenu', (e) => {
+  if (e.target.tagName === 'CANVAS') return;
+  e.preventDefault();
+  showCtxMenu(e.clientX, e.clientY, revMgr, -1);
+});
+
+document.getElementById('panel-spending').addEventListener('contextmenu', (e) => {
+  if (e.target.tagName === 'CANVAS') return;
+  e.preventDefault();
+  showCtxMenu(e.clientX, e.clientY, spnMgr, -1);
+});
+
+document.getElementById('chart-revenue').addEventListener('mouseleave', () => {
+  hideTooltip(); revMgr.hoveredIndex = -1;
+});
+document.getElementById('chart-spending').addEventListener('mouseleave', () => {
+  hideTooltip(); spnMgr.hoveredIndex = -1;
+});
+</script>
+</body>
+</html>
