@@ -57,6 +57,17 @@
     .chart-panel h2 { font-size: 1.1rem; font-weight: 600; margin-bottom: 0.25rem; }
     .chart-panel .subtitle { font-size: 0.8rem; color: var(--text-dim); margin-bottom: 1rem; }
 
+    .back-btn {
+      position: absolute; top: 1rem; right: 1rem;
+      background: var(--surface2); border: 1px solid var(--border);
+      color: var(--text); border-radius: 6px; padding: 0.35rem 0.7rem;
+      font-size: 0.78rem; cursor: pointer; font-family: inherit;
+      display: none; align-items: center; gap: 0.3rem;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .back-btn:hover { background: rgba(108, 140, 255, 0.15); border-color: var(--accent); }
+    .back-btn.visible { display: flex; }
+
     .breadcrumb {
       display: flex; align-items: center; gap: 0.3rem;
       font-size: 0.75rem; color: var(--text-dim);
@@ -133,6 +144,7 @@
 
   <div class="charts-container">
     <div class="chart-panel" id="panel-revenue">
+      <button class="back-btn" id="back-revenue">&#8592; Back</button>
       <h2>Federal Revenue</h2>
       <div class="subtitle">Total: $5.2 Trillion</div>
       <div class="breadcrumb" id="bc-revenue"></div>
@@ -141,6 +153,7 @@
       <div class="hint">Click a slice to drill down</div>
     </div>
     <div class="chart-panel" id="panel-spending">
+      <button class="back-btn" id="back-spending">&#8592; Back</button>
       <h2>Federal Spending</h2>
       <div class="subtitle">Total: $7.0 Trillion</div>
       <div class="breadcrumb" id="bc-spending"></div>
@@ -1054,10 +1067,11 @@ function getDimensionNames(node) {
 
 // ─── CHART MANAGER ───────────────────────────────────────────────────────────
 class PieManager {
-  constructor(canvasId, data, bcId, totalId) {
+  constructor(canvasId, data, bcId, totalId, backBtnId) {
     this.canvas = document.getElementById(canvasId);
     this.bcEl = document.getElementById(bcId);
     this.totalEl = document.getElementById(totalId);
+    this.backBtn = document.getElementById(backBtnId);
     this.rootData = data;
     // stack entries: { node, dimName }  — dimName is which dimension was chosen
     this.stack = [];
@@ -1065,6 +1079,7 @@ class PieManager {
     this.currentDimName = null; // which dimension we're viewing at root
     this.chart = null;
     this.hoveredIndex = -1;
+    this.backBtn.addEventListener('click', () => this.goBack());
     this.render();
   }
 
@@ -1184,6 +1199,7 @@ class PieManager {
 
     const posTotal = displayItems.reduce((a, c) => a + c.value, 0);
     this.totalEl.innerHTML = `Showing: <strong>${fmtB(posTotal)}</strong>${negHtml}`;
+    this.backBtn.classList.toggle('visible', this.canGoBack);
     this.updateBreadcrumb();
   }
 
@@ -1457,8 +1473,8 @@ document.addEventListener('click', (e) => {
 document.addEventListener('scroll', hideCtxMenu);
 
 // ─── INIT ────────────────────────────────────────────────────────────────────
-const revMgr = new PieManager('chart-revenue', revenueData, 'bc-revenue', 'total-revenue');
-const spnMgr = new PieManager('chart-spending', spendingData, 'bc-spending', 'total-spending');
+const revMgr = new PieManager('chart-revenue', revenueData, 'bc-revenue', 'total-revenue', 'back-revenue');
+const spnMgr = new PieManager('chart-spending', spendingData, 'bc-spending', 'total-spending', 'back-spending');
 
 function getSliceAtEvent(chart, nativeEvt) {
   const elems = chart.getElementsAtEventForMode(nativeEvt, 'nearest', { intersect: true }, false);
